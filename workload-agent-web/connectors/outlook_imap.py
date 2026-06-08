@@ -52,9 +52,12 @@ def fetch_recent_emails(lookback_hours: int = None) -> list[RawEmail]:
         return []
 
     hours = lookback_hours or settings.email_lookback_hours
-    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%d-%b-%Y")
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%d-%b-%Y")
 
     # Try both IMAP servers (personal vs work accounts)
+    # Note: Microsoft 365 work accounts using OAuth2/Modern Auth will not work
+    # with basic password auth. If this is your account type, Outlook sync will
+    # be skipped silently — Gmail and Asana will still sync normally.
     imap_hosts = ["imap-mail.outlook.com", "outlook.office365.com"]
     mail = None
 
@@ -68,10 +71,10 @@ def fetch_recent_emails(lookback_hours: int = None) -> list[RawEmail]:
             continue
 
     if mail is None:
-        raise RuntimeError(
-            "Could not connect to Outlook IMAP. "
-            "Check your email/password and that IMAP is enabled in Outlook settings."
-        )
+        # Return empty list instead of raising — accounts using OAuth2/Modern Auth
+        # cannot use basic password IMAP. Gmail and Asana will still sync.
+        print("Outlook IMAP: skipping — account may require OAuth2/Modern Auth (basic password auth not supported)")
+        return []
 
     mail.select("inbox")
     _, msg_ids = mail.search(None, f'SINCE {since}')
@@ -100,7 +103,7 @@ def fetch_recent_emails(lookback_hours: int = None) -> list[RawEmail]:
             received_at = email.utils.parsedate_to_datetime(date_str)
             received_at = received_at.astimezone(timezone.utc).replace(tzinfo=None)
         except Exception:
-            received_at = datetime.utcnow()
+            received_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         emails.append(RawEmail(
             id=mid.decode(),
