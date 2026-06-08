@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio
+from datetime import datetime, timezone
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -21,7 +21,7 @@ def _asana_priority(task: RawAsanaTask):
         return Priority.HIGH, "Tagged urgent/blocker in Asana"
     if task.due_on:
         try:
-            delta = datetime.fromisoformat(task.due_on) - datetime.utcnow()
+           delta = datetime.fromisoformat(task.due_on).replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
             if delta.total_seconds() < 0:
                 return Priority.HIGH, "Overdue"
             if delta.days == 0:
