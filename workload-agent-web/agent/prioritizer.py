@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from models import Priority, PriorityRule, RuleConditionField, RuleOperator, Task
 
 
@@ -24,8 +24,10 @@ def _match(rule: PriorityRule, task: Task) -> bool:
 def _deadline_bump(deadline: datetime | None) -> Priority | None:
     if not deadline:
         return None
-    delta = deadline - datetime.utcnow()
-    if delta.total_seconds() < 0:
+  now = datetime.now(timezone.utc)
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    delta = deadline - now
         return Priority.HIGH
     if delta < timedelta(hours=24):
         return Priority.HIGH
