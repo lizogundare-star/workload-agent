@@ -68,7 +68,7 @@ async def list_tasks(
     if task_status:
         tasks = [t for t in tasks if t.status == task_status]
     rank = {Priority.HIGH: 0, Priority.MID: 1, Priority.LOW: 2}
-    tasks.sort(key=lambda t: (rank[t.priority], t.deadline or datetime.max))
+    tasks.sort(key=lambda t: (rank[t.priority], t.deadline.replace(tzinfo=None) if t.deadline else datetime.max))
     return tasks
 
 
