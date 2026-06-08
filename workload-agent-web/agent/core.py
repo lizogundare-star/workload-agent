@@ -111,7 +111,11 @@ async def sync_all(lookback_hours: Optional[int] = None) -> dict:
                 await upsert_task(task)
             counts[source.value] = len(tasks)
         except Exception as e:
-            counts["errors"].append(f"{source.value}: {e}")
+            import traceback
+            msg = f"{source.value}: {e}"
+            print(f"SYNC ERROR — {msg}")
+            traceback.print_exc()
+            counts["errors"].append(msg)
 
     try:
         await delete_tasks_by_source(Source.ASANA.value)
@@ -123,7 +127,11 @@ async def sync_all(lookback_hours: Optional[int] = None) -> dict:
             await upsert_task(task)
         counts["asana"] = len(tasks)
     except Exception as e:
-        counts["errors"].append(f"asana: {e}")
+        import traceback
+        msg = f"asana: {e}"
+        print(f"SYNC ERROR — {msg}")
+        traceback.print_exc()
+        counts["errors"].append(msg)
 
     counts["total"] = counts["gmail"] + counts["outlook"] + counts["asana"]
     return counts
