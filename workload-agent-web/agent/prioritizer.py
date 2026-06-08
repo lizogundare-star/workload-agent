@@ -24,10 +24,11 @@ def _match(rule: PriorityRule, task: Task) -> bool:
 def _deadline_bump(deadline: datetime | None) -> Priority | None:
     if not deadline:
         return None
-  now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     if deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=timezone.utc)
     delta = deadline - now
+    if delta.total_seconds() < 0:
         return Priority.HIGH
     if delta < timedelta(hours=24):
         return Priority.HIGH
@@ -37,13 +38,11 @@ def _deadline_bump(deadline: datetime | None) -> Priority | None:
 
 
 def apply_priority(task: Task, rules: list[PriorityRule]) -> Task:
-    # 1. User rules always win
     for rule in rules:
         if _match(rule, task):
             task.priority = rule.priority
             task.rule_triggered = rule.name
             return task
-    # 2. Deadline heuristic can only upgrade, never downgrade
     bump = _deadline_bump(task.deadline)
     if bump:
         rank = {Priority.HIGH: 3, Priority.MID: 2, Priority.LOW: 1}
