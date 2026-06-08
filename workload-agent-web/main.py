@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -24,7 +24,6 @@ from agent.core import generate_summary, sync_all
 app = FastAPI(title="Workload Agent API", docs_url="/api/docs")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Serve the web UI
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -36,22 +35,16 @@ async def startup():
     await init_db()
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
-
 def verify(creds: Optional[HTTPAuthorizationCredentials] = Security(bearer)):
     if not creds or creds.credentials != settings.api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return True
 
 
-# ── Web UI ─────────────────────────────────────────────────────────────────────
-
 @app.get("/", include_in_schema=False)
 async def serve_ui():
     return FileResponse(static_dir / "index.html")
 
-
-# ── Tasks ──────────────────────────────────────────────────────────────────────
 
 @app.get("/api/tasks", response_model=list[Task])
 async def list_tasks(
@@ -68,7 +61,15 @@ async def list_tasks(
     if task_status:
         tasks = [t for t in tasks if t.status == task_status]
     rank = {Priority.HIGH: 0, Priority.MID: 1, Priority.LOW: 2}
-    tasks.sort(key=lambda t: (rank[t.priority], t.deadline.replace(tzinfo=None) if t.deadline else datetime.max))
+
+    def sort_key(t):
+        if t.deadline is None:
+            d = datetime.max
+        else:
+            d = t.deadline.replace(tzinfo=None) if t.deadline.tzinfo else t.deadline
+        return (rank[t.priority], d)
+
+    tasks.sort(key=sort_key)
     return tasks
 
 
@@ -105,8 +106,6 @@ async def set_status(
     return task
 
 
-# ── Sync ───────────────────────────────────────────────────────────────────────
-
 @app.post("/api/refresh")
 async def refresh(
     lookback_hours: Optional[int] = None,
@@ -116,14 +115,10 @@ async def refresh(
     return {"status": "ok", "synced": counts}
 
 
-# ── Summary ────────────────────────────────────────────────────────────────────
-
 @app.get("/api/summary", response_model=DailySummary)
 async def daily_summary(_: bool = Depends(verify)):
     return await generate_summary()
 
-
-# ── Rules ──────────────────────────────────────────────────────────────────────
 
 @app.get("/api/rules", response_model=list[PriorityRule])
 async def list_rules(_: bool = Depends(verify)):
@@ -141,8 +136,6 @@ async def create_rule(body: PriorityRuleCreate, _: bool = Depends(verify)):
 async def remove_rule(rule_id: str, _: bool = Depends(verify)):
     await delete_rule(rule_id)
 
-
-# ── Health ─────────────────────────────────────────────────────────────────────
 
 @app.get("/health", include_in_schema=False)
 async def health():
