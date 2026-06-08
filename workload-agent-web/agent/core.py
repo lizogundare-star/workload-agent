@@ -45,6 +45,8 @@ async def _process_emails(source: Source, emails) -> list[Task]:
             if t.get("deadline"):
                 try:
                     deadline = datetime.fromisoformat(t["deadline"])
+                    if deadline.tzinfo:
+                        deadline = deadline.replace(tzinfo=None)
                 except ValueError:
                     pass
             try:
@@ -158,12 +160,17 @@ any deadlines this week, and a clear focus recommendation. \
 Be direct. No bullet points."""}],
     )
 
+    def _sort_deadline(t):
+        if t.deadline is None:
+            return datetime.max
+        return t.deadline.replace(tzinfo=None) if t.deadline.tzinfo else t.deadline
+
     return DailySummary(
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(timezone.utc),
         high_count=len(high),
         mid_count=len(mid),
         low_count=len(low),
         total_count=len(active),
         narrative=resp.content[0].text.strip(),
-        top_tasks=sorted(high, key=lambda t: t.deadline or datetime.max)[:5],
+        top_tasks=sorted(high, key=_sort_deadline)[:5],
     )
