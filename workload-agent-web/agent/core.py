@@ -1,7 +1,7 @@
 from __future__ import annotations
-from datetime import datetime, timezone
+import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import anthropic
@@ -21,7 +21,7 @@ def _asana_priority(task: RawAsanaTask):
         return Priority.HIGH, "Tagged urgent/blocker in Asana"
     if task.due_on:
         try:
-           delta = datetime.fromisoformat(task.due_on).replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
+            delta = datetime.fromisoformat(task.due_on).replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
             if delta.total_seconds() < 0:
                 return Priority.HIGH, "Overdue"
             if delta.days == 0:
@@ -91,31 +91,26 @@ def _process_asana(raw: list[RawAsanaTask]) -> list[Task]:
 
 async def sync_all(lookback_hours: Optional[int] = None) -> dict:
     from connectors.gmail_imap import fetch_recent_emails as gmail_fetch
-    from connectors.outlook_imap import fetch_recent_emails as outlook_fetch
     from connectors.asana_connector import fetch_my_tasks
 
     rules = await get_all_rules()
-    counts = {"gmail": 0, "outlook": 0, "asana": 0, "total": 0, "errors": []}
+    counts = {"gmail": 0, "asana": 0, "total": 0, "errors": []}
 
-    for source, fetch_fn in [
-        (Source.GMAIL, lambda: gmail_fetch(lookback_hours)),
-        (Source.OUTLOOK, lambda: outlook_fetch(lookback_hours)),
-    ]:
-        try:
-            await delete_tasks_by_source(source.value)
-            loop = asyncio.get_event_loop()
-            emails = await loop.run_in_executor(None, fetch_fn)
-            tasks = await _process_emails(source, emails)
-            for task in tasks:
-                apply_priority(task, rules)
-                await upsert_task(task)
-            counts[source.value] = len(tasks)
-        except Exception as e:
-            import traceback
-            msg = f"{source.value}: {e}"
-            print(f"SYNC ERROR — {msg}")
-            traceback.print_exc()
-            counts["errors"].append(msg)
+    try:
+        await delete_tasks_by_source(Source.GMAIL.value)
+        loop = asyncio.get_event_loop()
+        emails = await loop.run_in_executor(None, lambda: gmail_fetch(lookback_hours))
+        tasks = await _process_emails(Source.GMAIL, emails)
+        for task in tasks:
+            apply_priority(task, rules)
+            await upsert_task(task)
+        counts["gmail"] = len(tasks)
+    except Exception as e:
+        import traceback
+        msg = f"gmail: {e}"
+        print(f"SYNC ERROR — {msg}")
+        traceback.print_exc()
+        counts["errors"].append(msg)
 
     try:
         await delete_tasks_by_source(Source.ASANA.value)
@@ -133,7 +128,7 @@ async def sync_all(lookback_hours: Optional[int] = None) -> dict:
         traceback.print_exc()
         counts["errors"].append(msg)
 
-    counts["total"] = counts["gmail"] + counts["outlook"] + counts["asana"]
+    counts["total"] = counts["gmail"] + counts["asana"]
     return counts
 
 
