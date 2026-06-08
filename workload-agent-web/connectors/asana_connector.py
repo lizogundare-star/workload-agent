@@ -63,7 +63,6 @@ def fetch_my_tasks() -> list[RawAsanaTask]:
         all_tasks.extend(_fetch_tasks_for_workspace(tasks_api, user_gid, gid))
 
     return all_tasks
-        return all_tasks
 
 
 def list_workspaces() -> list[dict]:
