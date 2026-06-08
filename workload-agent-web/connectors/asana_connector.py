@@ -48,24 +48,25 @@ def fetch_my_tasks() -> list[RawAsanaTask]:
     if not workspace_gids:
         return []
 
-    with _client() as client:
-        tasks_api = asana.TasksApi(client)
-        users_api = asana.UsersApi(client)
+    client = _client()
+    tasks_api = asana.TasksApi(client)
+    users_api = asana.UsersApi(client)
 
-        try:
-            me = users_api.get_user("me", opts={})
-            user_gid = me["gid"]
-        except ApiException as e:
-            raise RuntimeError(f"Asana auth failed: {e}") from e
+    try:
+        me = users_api.get_user("me", opts={})
+        user_gid = me["gid"]
+    except ApiException as e:
+        raise RuntimeError(f"Asana auth failed: {e}") from e
 
-        all_tasks: list[RawAsanaTask] = []
-        for gid in workspace_gids:
-            all_tasks.extend(_fetch_tasks_for_workspace(tasks_api, user_gid, gid))
+    all_tasks: list[RawAsanaTask] = []
+    for gid in workspace_gids:
+        all_tasks.extend(_fetch_tasks_for_workspace(tasks_api, user_gid, gid))
 
+    return all_tasks
         return all_tasks
 
 
 def list_workspaces() -> list[dict]:
-    with _client() as client:
-        api = asana.WorkspacesApi(client)
-        return list(api.get_workspaces(opts={}))
+    client = _client()
+    api = asana.WorkspacesApi(client)
+    return list(api.get_workspaces(opts={}))
