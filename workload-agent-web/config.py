@@ -17,9 +17,14 @@ class Settings(BaseSettings):
     outlook_address: str = Field("", alias="OUTLOOK_ADDRESS")
     outlook_password: str = Field("", alias="OUTLOOK_PASSWORD")
 
-    # Asana
+    # Asana — supports multiple workspaces, comma-separated
+    # e.g. ASANA_WORKSPACE_GIDS=111111111,222222222
     asana_access_token: str = Field("", alias="ASANA_ACCESS_TOKEN")
-    asana_workspace_gid: str = Field("", alias="ASANA_WORKSPACE_GID")
+    asana_workspace_gids: str = Field("", alias="ASANA_WORKSPACE_GIDS")
+
+    @property
+    def asana_workspace_gid_list(self) -> list[str]:
+        return [g.strip() for g in self.asana_workspace_gids.split(",") if g.strip()]
 
     # App
     api_key: str = Field("change-me", alias="API_KEY")
